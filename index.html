@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<title>Spanish Number Memory</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: #f0f4f8;
+    margin: 0;
+    padding: 0;
+    text-align: center;
+  }
+  h1 { color: #333; }
+  .screen {
+    display: none;
+    padding: 20px;
+  }
+  .active { display: block; }
+  button {
+    background: #4caf50;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 18px;
+    cursor: pointer;
+    margin-top: 15px;
+  }
+  button:hover { background: #45a049; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(6, 100px);
+    gap: 10px;
+    justify-content: center;
+    margin-top: 20px;
+  }
+  .card {
+    background: white;
+    border: 2px solid #ccc;
+    border-radius: 8px;
+    height: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.3s;
+    font-size: 26px;
+    padding: 5px;
+    text-align: center;
+    line-height: 1.1;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+  .card.number { color: fuchsia; }
+  .card.word { color: black; font-size: 18px; }
+  .matched {
+    background: #8bc34a !important;
+    color: white !important;
+    pointer-events: none;
+  }
+  #confetti {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 999;
+  }
+  #winMessage {
+    display: none;
+    font-size: 24px;
+    color: #333;
+    margin: 20px;
+  }
+</style>
+</head>
+<body>
+
+<!-- PANTALLA DE INICIO -->
+<div id="startScreen" class="screen active">
+  <h1>Spanish Number Memory</h1>
+  <p>Match the numbers with their Spanish words. There are 3 sections: 15, 15 and 20 pairs.</p>
+  <button onclick="startSection(1)">Start</button>
+</div>
+
+<!-- SECCIÓN 1 -->
+<div id="section1" class="screen">
+  <h1>Section 1</h1>
+  <div id="board1" class="grid"></div>
+  <button id="continue1" onclick="startSection(2)" style="display:none;">Continue</button>
+</div>
+
+<!-- SECCIÓN 2 -->
+<div id="section2" class="screen">
+  <h1>Section 2</h1>
+  <div id="board2" class="grid"></div>
+  <button id="continue2" onclick="startSection(3)" style="display:none;">Continue</button>
+</div>
+
+<!-- SECCIÓN 3 -->
+<div id="section3" class="screen">
+  <h1>Section 3</h1>
+  <div id="board3" class="grid"></div>
+  <div id="winMessage">You Won!</div>
+  <button id="restartBtn" onclick="restartGame()" style="display:none;">Restart</button>
+</div>
+
+<canvas id="confetti"></canvas>
+
+<script>
+// Lista de números en español con mayúscula inicial
+const words = [
+"Uno","Dos","Tres","Cuatro","Cinco","Seis","Siete","Ocho","Nueve","Diez",
+"Once","Doce","Trece","Catorce","Quince",
+"Dieciseis","Diecisiete","Dieciocho","Diecinueve","Veinte",
+"Veintiuno","Veintidos","Veintitres","Veinticuatro","Veinticinco","Veintiseis","Veintisiete","Veintiocho","Veintinueve","Treinta",
+"Treinta y uno","Treinta y dos","Treinta y tres","Treinta y cuatro","Treinta y cinco","Treninta y seis","Treinta y siete","Treinta y ocho","Treinta y nueve",
+"Cuarenta","Cuarenta y uno","Cuarenta y dos","Cuarenta y tres","Cuarenta y cuatro","Cuarenta y cinco","Cuarenta y seis","Cuarenta y siete","Cuarenta y ocho","Cuarenta y nueve",
+"Cincuenta"
+];
+
+let currentSection = 1;
+let cards = [];
+let firstCard = null;
+let lockBoard = false;
+let matchesFound = 0;
+let totalMatches = 0;
+
+function startSection(section) {
+  hideAllScreens();
+  currentSection = section;
+  matchesFound = 0;
+  if(section === 1) {
+    totalMatches = 15;
+    document.getElementById('section1').classList.add('active');
+    initBoard(1, 1, 15);
+  } else if(section === 2) {
+    totalMatches = 15;
+    document.getElementById('section2').classList.add('active');
+    initBoard(2, 16, 30);
+  } else {
+    totalMatches = 20;
+    document.getElementById('section3').classList.add('active');
+    initBoard(3, 31, 50);
+  }
+}
+
+function hideAllScreens(){
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+}
+
+function initBoard(boardNumber, start, end) {
+  const board = document.getElementById(`board${boardNumber}`);
+  board.innerHTML = '';
+  cards = [];
+
+  for(let i=start-1;i<end;i++){
+    cards.push({type:'number', value:i+1, id:`num-${i}`});
+    cards.push({type:'word', value:words[i], id:`word-${i}`});
+  }
+
+  shuffle(cards);
+
+  cards.forEach(card => {
+    const div = document.createElement('div');
+    div.className = `card ${card.type}`;
+    div.dataset.type = card.type;
+    div.dataset.value = card.value;
+    div.dataset.id = card.id;
+    div.addEventListener('click', onCardClick);
+    board.appendChild(div);
+  });
+}
+
+function shuffle(array){
+  for(let i=array.length-1; i>0; i--){
+    const j = Math.floor(Math.random() * (i+1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+}
+
+function onCardClick(e){
+  if(lockBoard) return;
+  const card = e.target;
+  if(card.classList.contains('flipped') || card.classList.contains('matched')) return;
+
+  card.textContent = card.dataset.value;
+  card.classList.add('flipped');
+
+  if(!firstCard){
+    firstCard = card;
+    return;
+  }
+
+  if(firstCard.dataset.id.split('-')[1] === card.dataset.id.split('-')[1] &&
+     firstCard.dataset.type !== card.dataset.type){
+    firstCard.classList.add('matched');
+    card.classList.add('matched');
+    matchesFound++;
+    resetTurn();
+    if(matchesFound === totalMatches) sectionComplete();
+  } else {
+    lockBoard = true;
+    setTimeout(()=>{
+      firstCard.textContent = '';
+      card.textContent = '';
+      firstCard.classList.remove('flipped');
+      card.classList.remove('flipped');
+      resetTurn();
+    }, 800);
+  }
+}
+
+function resetTurn(){
+  firstCard = null;
+  lockBoard = false;
+}
+
+function sectionComplete(){
+  if(currentSection === 1){
+    document.getElementById('continue1').style.display = 'inline-block';
+  } else if(currentSection === 2){
+    document.getElementById('continue2').style.display = 'inline-block';
+  } else {
+    document.getElementById('winMessage').style.display = 'block';
+    document.getElementById('restartBtn').style.display = 'inline-block';
+    launchConfetti();
+  }
+}
+
+function restartGame(){
+  document.getElementById('winMessage').style.display = 'none';
+  document.getElementById('restartBtn').style.display = 'none';
+  startSection(1);
+}
+
+// Confetti
+const canvas = document.getElementById('confetti');
+const ctx = canvas.getContext('2d');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+let confettiParticles = [];
+
+function launchConfetti() {
+  confettiParticles = [];
+  for (let i = 0; i < 150; i++) {
+    confettiParticles.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height - canvas.height,
+      r: Math.random() * 6 + 2,
+      d: Math.random() * 20 + 10,
+      color: `hsl(${Math.random() * 360}, 70%, 60%)`,
+      tilt: Math.random() * 10 - 10
+    });
+  }
+  requestAnimationFrame(drawConfetti);
+}
+
+function drawConfetti() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  confettiParticles.forEach(p => {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2, false);
+    ctx.fillStyle = p.color;
+    ctx.fill();
+    p.y += p.d / 10;
+    if (p.y > canvas.height) p.y = -10;
+  });
+  requestAnimationFrame(drawConfetti);
+}
+
+window.addEventListener('resize', ()=>{
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+});
+</script>
+</body>
+</html>
